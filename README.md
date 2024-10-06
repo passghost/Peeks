@@ -19,7 +19,7 @@ Feel free to add, remove, modify, or delete any custom graphics included in this
 
 ## Getting Started
 
-To run Peeks, clone the repository and run the `run_peeks.bat` file to check for dependencies and launch the program.
+To run Peeks, clone the repository and run the `Peeks.bat` file to check for dependencies and launch the program.
 
 ## Community
 
