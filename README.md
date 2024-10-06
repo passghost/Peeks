@@ -27,6 +27,6 @@ This project (while cute) is made for adult developers and may not be age-approp
 
 ## License
 
-[Include any licensing information here]
+Free to use, no restrictions on any of the content included. 
 
 ---
