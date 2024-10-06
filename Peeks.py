@@ -1,49 +1,92 @@
 import pygame
+import pygame_gui
 import random
+import time
+from PIL import Image
 import speech_recognition as sr
 import threading
-import time
 import subprocess
 import pystray
-from PIL import Image
 import ctypes
 from ctypes import wintypes
 
-# Initialize Pygame
+# Initialize Pygame and pygame_gui
 pygame.init()
 
-# Set up the display with the eye resolution and application icon
-icon_image = pygame.image.load('Images/eyetest2.png')
-pygame.display.set_icon(icon_image)
-screen = pygame.display.set_mode((1000, 500))
+# Load the images as Pillow images for easier hue manipulation
+eye_closed = Image.open('Images/eyetest1.png')
+eye_half_open = Image.open('Images/eyetest2.png')
+eye_open = Image.open('Images/eyetest3.png')
+
+# Convert the Pillow image to Pygame format
+def pil_to_pygame(image):
+    return pygame.image.frombuffer(image.tobytes(), image.size, image.mode).convert_alpha()
+
+# Use image dimensions to set the display mode
+image_width, image_height = eye_open.size
+screen = pygame.display.set_mode((image_width, image_height))
 pygame.display.set_caption("Peeks")
 
-# Load images from the Images folder
-eye_closed = pygame.image.load('Images/eyetest1.png')
-eye_half_open = pygame.image.load('Images/eyetest2.png')
-eye_open = pygame.image.load('Images/eyetest3.png')
-animation_images = [
-    pygame.image.load('Images/Down.png'),
-    pygame.image.load('Images/Downleft.png'),
-    pygame.image.load('Images/UpRight.png'),
-    pygame.image.load('Images/DownRight.png')
-]
-boredom_images = [
-    pygame.image.load('Images/eyetest3.png'),
-    pygame.image.load('Images/eyetest5.png'),
-    pygame.image.load('Images/eyetest3.png'),
-    pygame.image.load('Images/eyetest5.png'),
-    pygame.image.load('Images/eyetest6.png'),
-    pygame.image.load('Images/eyetest7.png'),
-    pygame.image.load('Images/eyetest8.png')
-]
+# Convert images to Pygame after display mode is set
+eye_closed_pygame = pil_to_pygame(eye_closed)
+eye_half_open_pygame = pil_to_pygame(eye_half_open)
+eye_open_pygame = pil_to_pygame(eye_open)
 
-# Function to display an image
-def display_image(image, hold=False):
-    screen.blit(image, (0, 0))
+# Set the icon
+icon_image = pygame.image.load('Images/eyetest2.png').convert_alpha()
+pygame.display.set_icon(icon_image)
+
+# Create a UI manager
+manager = pygame_gui.UIManager((image_width, image_height))
+
+# Create a label for the hue slider
+hue_label = pygame_gui.elements.UILabel(
+    relative_rect=pygame.Rect((10, 10), (50, 20)),
+    text="Hue",
+    manager=manager
+)
+
+# Create a smaller horizontal hue slider
+hue_slider = pygame_gui.elements.UIHorizontalSlider(
+    relative_rect=pygame.Rect((70, 10), (200, 20)),  
+    start_value=1.0,
+    value_range=(0.0, 2.0),  # 0.0 - 2.0 for color enhancement factor
+    manager=manager
+)
+
+# Function to adjust the hue using ImageEnhance
+def adjust_hue(image, hue_shift):
+    # Convert image to HSV
+    hsv_image = image.convert('HSV')
+    h, s, v = hsv_image.split()
+
+    # Adjust the hue
+    h = h.point(lambda p: (p + int(hue_shift * 255)) % 256)
+
+    # Recombine back into an image
+    adjusted_image = Image.merge('HSV', (h, s, v)).convert('RGB')
+    return adjusted_image
+
+# Function to display an image with optional hue adjustment
+def display_image(image, hue_shift, hold=False):
+    adjusted_image = adjust_hue(image, hue_shift)
+    pygame_image = pil_to_pygame(adjusted_image)
+    
+    screen.fill((50, 50, 50))  # Background color
+    screen.blit(pygame_image, (0, 0))  # Blit at (0,0) since window is scaled to the image size
+    manager.draw_ui(screen)  # Draw UI on top of the image
     pygame.display.flip()
     if hold:
-        pygame.time.wait(1000)  # Hold this frame longer
+        pygame.time.wait(1000)  # Hold the frame longer if needed
+
+# Function to run the blinking animation (eye_closed -> eye_half_open -> eye_open)
+def run_blinking_animation(hue_shift):
+    display_image(eye_closed, hue_shift)
+    pygame.time.wait(150)  # Closed for 150ms
+    display_image(eye_half_open, hue_shift)
+    pygame.time.wait(150)  # Half-open for 150ms
+    display_image(eye_open, hue_shift)
+    pygame.time.wait(2000)  # Open for 2 seconds before next blink
 
 # Initialize the speech recognition
 recognizer = sr.Recognizer()
@@ -55,9 +98,6 @@ running = True
 load_firefox_detected = False
 exit_detected = False
 enhance_detected = False
-last_boredom_time = time.time()
-boredom_interval = random.randint(30, 60)
-last_move_time = time.time()
 
 def listen_for_commands():
     global load_firefox_detected, exit_detected, enhance_detected, running
@@ -107,76 +147,46 @@ def maximize_window():
     user32 = ctypes.windll.user32
     user32.ShowWindow(user32.GetForegroundWindow(), 3)
 
-# Function to move the window
-def move_window():
-    user32 = ctypes.windll.user32
-    hwnd = user32.GetForegroundWindow()
-    rect = wintypes.RECT()
-    user32.GetWindowRect(hwnd, ctypes.byref(rect))
-    direction = random.choice(['left', 'right', 'up', 'down'])
-    if direction == 'left':
-        user32.MoveWindow(hwnd, rect.left - 5, rect.top, rect.right - rect.left, rect.bottom - rect.top, True)
-    elif direction == 'right':
-        user32.MoveWindow(hwnd, rect.left + 5, rect.top, rect.right - rect.left, rect.bottom - rect.top, True)
-    elif direction == 'up':
-        user32.MoveWindow(hwnd, rect.left, rect.top - 5, rect.right - rect.left, rect.bottom - rect.top, True)
-    elif direction == 'down':
-        user32.MoveWindow(hwnd, rect.left, rect.top + 5, rect.right - rect.left, rect.bottom - rect.top, True)
-
 def main():
-    global running, load_firefox_detected, exit_detected, enhance_detected, last_boredom_time, boredom_interval, last_move_time
+    global running, load_firefox_detected, exit_detected, enhance_detected
     listening_thread = threading.Thread(target=listen_for_commands)
     listening_thread.daemon = True
     listening_thread.start()
     clock = pygame.time.Clock()
 
+    blink_interval = random.randint(3, 6)  # Randomize blink interval between 3 to 6 seconds
+    last_blink_time = time.time()
+
     while running:
+        time_delta = clock.tick(60) / 1000.0  # 60 FPS
+
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 running = False
+            manager.process_events(event)
 
         current_time = time.time()
-        if current_time - last_boredom_time > boredom_interval:
-            last_boredom_time = current_time
-            boredom_interval = random.randint(30, 60)
-            for image in boredom_images[:-1]:
-                display_image(image)
-                pygame.time.wait(250)  # Adjust delay for animation speed
-            display_image(boredom_images[-1], hold=True)
-            continue
+
+        # Run the blinking animation if enough time has passed since the last blink
+        if current_time - last_blink_time > blink_interval:
+            run_blinking_animation(hue_slider.get_current_value())
+            last_blink_time = current_time
+            blink_interval = random.randint(3, 6)  # Reset interval for next blink
+
+        if load_firefox_detected:
+            subprocess.Popen([r'C:\Program Files\Mozilla Firefox\firefox.exe'])
+            load_firefox_detected = False
 
         if exit_detected:
             running = False
-
-        if load_firefox_detected:
-            start_time = time.time()
-            while time.time() - start_time < 5:
-                for image in animation_images:
-                    display_image(image)
-                    pygame.time.wait(250)  # Adjust delay for animation speed
-            load_firefox_detected = False  # Reset after animation
-            subprocess.Popen([r'C:\Program Files\Mozilla Firefox\firefox.exe'])
 
         if enhance_detected:
             maximize_window()
             enhance_detected = False
 
-        if current_time - last_move_time > 10:
-            move_window()
-            last_move_time = current_time
-
-        else:
-            display_image(eye_open)
-            pygame.time.wait(random.randint(2000, 5000))  # Keep eyes open for 2-5 seconds
-
-            display_image(eye_half_open)
-            pygame.time.wait(100)
-
-            display_image(eye_closed)
-            pygame.time.wait(100)
-
-            display_image(eye_half_open)
-            pygame.time.wait(100)
+        display_image(eye_open, hue_slider.get_current_value())
+        manager.update(time_delta)
+        manager.draw_ui(screen)
 
     pygame.quit()
     icon.stop()
