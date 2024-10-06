@@ -13,29 +13,29 @@ from ctypes import wintypes
 pygame.init()
 
 # Set up the display with the eye resolution and application icon
-icon_image = pygame.image.load('eyetest2.png')
+icon_image = pygame.image.load('Images/eyetest2.png')
 pygame.display.set_icon(icon_image)
 screen = pygame.display.set_mode((1000, 500))
 pygame.display.set_caption("Peeks")
 
-# Load images
-eye_closed = pygame.image.load('eyetest1.png')
-eye_half_open = pygame.image.load('eyetest2.png')
-eye_open = pygame.image.load('eyetest3.png')
+# Load images from the Images folder
+eye_closed = pygame.image.load('Images/eyetest1.png')
+eye_half_open = pygame.image.load('Images/eyetest2.png')
+eye_open = pygame.image.load('Images/eyetest3.png')
 animation_images = [
-    pygame.image.load('Down.png'),
-    pygame.image.load('Downleft.png'),
-    pygame.image.load('UpRight.png'),
-    pygame.image.load('DownRight.png')
+    pygame.image.load('Images/Down.png'),
+    pygame.image.load('Images/Downleft.png'),
+    pygame.image.load('Images/UpRight.png'),
+    pygame.image.load('Images/DownRight.png')
 ]
 boredom_images = [
-    pygame.image.load('eyetest3.png'),
-    pygame.image.load('eyetest5.png'),
-    pygame.image.load('eyetest3.png'),
-    pygame.image.load('eyetest5.png'),
-    pygame.image.load('eyetest6.png'),
-    pygame.image.load('eyetest7.png'),
-    pygame.image.load('eyetest8.png')
+    pygame.image.load('Images/eyetest3.png'),
+    pygame.image.load('Images/eyetest5.png'),
+    pygame.image.load('Images/eyetest3.png'),
+    pygame.image.load('Images/eyetest5.png'),
+    pygame.image.load('Images/eyetest6.png'),
+    pygame.image.load('Images/eyetest7.png'),
+    pygame.image.load('Images/eyetest8.png')
 ]
 
 # Function to display an image
@@ -49,8 +49,9 @@ def display_image(image, hold=False):
 recognizer = sr.Recognizer()
 microphone = sr.Microphone()
 
-# Global variables to track commands
+# Global variables to track commands and states
 firefox_commands = ["open mozilla", "load mozilla", "open firefox"]
+running = True
 load_firefox_detected = False
 exit_detected = False
 enhance_detected = False
@@ -59,7 +60,7 @@ boredom_interval = random.randint(30, 60)
 last_move_time = time.time()
 
 def listen_for_commands():
-    global load_firefox_detected, exit_detected, enhance_detected
+    global load_firefox_detected, exit_detected, enhance_detected, running
     while running:
         with microphone as source:
             recognizer.adjust_for_ambient_noise(source)
@@ -86,8 +87,7 @@ def listen_for_commands():
 
 # System tray icon setup
 def create_image():
-    image = Image.open("eyetest2.png")
-    return image
+    return Image.open("Images/eyetest2.png")
 
 def on_exit(icon, item):
     global running
@@ -123,61 +123,63 @@ def move_window():
     elif direction == 'down':
         user32.MoveWindow(hwnd, rect.left, rect.top + 5, rect.right - rect.left, rect.bottom - rect.top, True)
 
-# Main loop
-running = True
-listening_thread = threading.Thread(target=listen_for_commands)
-listening_thread.daemon = True
-listening_thread.start()
-clock = pygame.time.Clock()
+def main():
+    global running, load_firefox_detected, exit_detected, enhance_detected, last_boredom_time, boredom_interval, last_move_time
+    listening_thread = threading.Thread(target=listen_for_commands)
+    listening_thread.daemon = True
+    listening_thread.start()
+    clock = pygame.time.Clock()
 
-while running:
-    for event in pygame.event.get():
-        if event.type == pygame.QUIT:
-            running = False
+    while running:
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                running = False
 
-    current_time = time.time()
-    if current_time - last_boredom_time > boredom_interval:
-        last_boredom_time = current_time
-        boredom_interval = random.randint(30, 60)
-        for image in boredom_images[:-1]:
-            display_image(image)
-            pygame.time.wait(250)  # Adjust delay for animation speed
-        display_image(boredom_images[-1], hold=True)
-        continue
-
-    if exit_detected:
-        running = False
-
-    if load_firefox_detected:
-        start_time = time.time()
-        while time.time() - start_time < 5:
-            for image in animation_images:
+        current_time = time.time()
+        if current_time - last_boredom_time > boredom_interval:
+            last_boredom_time = current_time
+            boredom_interval = random.randint(30, 60)
+            for image in boredom_images[:-1]:
                 display_image(image)
                 pygame.time.wait(250)  # Adjust delay for animation speed
-        load_firefox_detected = False  # Reset after animation
-        subprocess.Popen([r'C:\Program Files\Mozilla Firefox\firefox.exe'])
+            display_image(boredom_images[-1], hold=True)
+            continue
 
-    if enhance_detected:
-        maximize_window()
-        enhance_detected = False
+        if exit_detected:
+            running = False
 
-    if current_time - last_move_time > 10:
-        move_window()
-        last_move_time = current_time
+        if load_firefox_detected:
+            start_time = time.time()
+            while time.time() - start_time < 5:
+                for image in animation_images:
+                    display_image(image)
+                    pygame.time.wait(250)  # Adjust delay for animation speed
+            load_firefox_detected = False  # Reset after animation
+            subprocess.Popen([r'C:\Program Files\Mozilla Firefox\firefox.exe'])
 
-    else:
-        display_image(eye_open)
-        pygame.time.wait(random.randint(2000, 5000))  # Keep eyes open for 2-5 seconds
+        if enhance_detected:
+            maximize_window()
+            enhance_detected = False
 
-        display_image(eye_half_open)
-        pygame.time.wait(100)
+        if current_time - last_move_time > 10:
+            move_window()
+            last_move_time = current_time
 
-        display_image(eye_closed)
-        pygame.time.wait(100)
+        else:
+            display_image(eye_open)
+            pygame.time.wait(random.randint(2000, 5000))  # Keep eyes open for 2-5 seconds
 
-        display_image(eye_half_open)
-        pygame.time.wait(100)
+            display_image(eye_half_open)
+            pygame.time.wait(100)
 
-# Quit Pygame
-pygame.quit()
-icon.stop()
+            display_image(eye_closed)
+            pygame.time.wait(100)
+
+            display_image(eye_half_open)
+            pygame.time.wait(100)
+
+    pygame.quit()
+    icon.stop()
+
+if __name__ == '__main__':
+    main()
